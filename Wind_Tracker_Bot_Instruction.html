@@ -1,0 +1,143 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <title>Инструкция пользователя - Wind Tracker Bot</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Arial, sans-serif;
+            background-color: #f8f9fa;
+            color: #202124;
+            line-height: 1.6;
+            margin: 0;
+            padding: 40px 20px;
+        }
+        .doc-page {
+            max-width: 800px;
+            margin: 0 auto;
+            background: #ffffff;
+            padding: 50px 60px;
+            border-radius: 8px;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.12), 0 1px 2px rgba(0,0,0,0.24);
+        }
+        h1 {
+            color: #1a73e8;
+            font-size: 26px;
+            text-align: center;
+            margin-bottom: 5px;
+        }
+        .subtitle {
+            text-align: center;
+            color: #5f6368;
+            font-size: 15px;
+            margin-bottom: 35px;
+        }
+        h2 {
+            color: #174ea6;
+            font-size: 18px;
+            border-bottom: 2px solid #e8eaed;
+            padding-bottom: 8px;
+            margin-top: 30px;
+        }
+        ul {
+            padding-left: 20px;
+        }
+        li {
+            margin-bottom: 10px;
+        }
+        strong {
+            color: #1a73e8;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 15px;
+            margin-bottom: 25px;
+            font-size: 14px;
+        }
+        th, td {
+            border: 1px solid #dadce0;
+            padding: 10px 14px;
+            text-align: left;
+        }
+        th {
+            background-color: #1a73e8;
+            color: #ffffff;
+            font-weight: 600;
+        }
+        tr:nth-child(even) {
+            background-color: #f8f9fa;
+        }
+        .step-box {
+            background-color: #e8f0fe;
+            border-left: 4px solid #1a73e8;
+            padding: 15px 20px;
+            margin-bottom: 15px;
+            border-radius: 0 6px 6px 0;
+        }
+        .step-title {
+            font-weight: bold;
+            color: #174ea6;
+            font-size: 15px;
+            margin-bottom: 5px;
+        }
+    </style>
+</head>
+<body>
+    <div class="doc-page">
+        <h1>🌬️ Инструкция и Руководство Пользователя<br>Telegram-бота «Wind Tracker Bot»</h1>
+        <div class="subtitle">Персональный помощник для отслеживания параметров ветра, прогнозов, графиков и алертов</div>
+
+        <h2>1. Основные возможности бота</h2>
+        <ul>
+            <li><strong>🌬️ Текущий ветер:</strong> Мгновенное получение скорости (м/с), направления (градусы + визуальная стрелка 🧭), порывов ветра и температуры воздуха.</li>
+            <li><strong>📅 Прогноз на 24 часа:</strong> Почасовой прогноз изменения параметров ветра на ближайшие сутки с визуализацией.</li>
+            <li><strong>📊 Графическая аналитика:</strong> Автоматическая генерация и отправка PNG-картинок с графиками динамики ветра и Розой Ветров.</li>
+            <li><strong>🗺️ Интерактивные карты:</strong> Генерация прямых ссылок на карты погоды и ветра Windy.com для выбранного города.</li>
+            <li><strong>📍 Мои города (Избранное):</strong> Возможность сохранить список любимых спотов для быстрого запроса в 1 клик.</li>
+            <li><strong>📊 Сравнение спотов:</strong> Построение единого сравнительного графика изменения ветра сразу по всем сохранённым городам.</li>
+            <li><strong>🔔 Авто-уведомления (Алерты):</strong> Фоновая проверка погоды каждые 30 минут и отправка push-уведомления при превышении заданного порога ветра.</li>
+        </ul>
+
+        <h2>2. Полный список команд бота</h2>
+        <table>
+            <thead>
+                <tr>
+                    <th>Команда</th>
+                    <th>Назначение</th>
+                    <th>Пример использования</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr><td><code>/start</code></td><td>Запуск бота и открытие Главного меню</td><td><code>/start</code></td></tr>
+                <tr><td><code>/wind [город]</code></td><td>Запрос текущей скорости и направления ветра</td><td><code>/wind Сочи</code></td></tr>
+                <tr><td><code>/forecast [город]</code></td><td>Прогноз ветра на 24 часа + график</td><td><code>/forecast Анапа</code></td></tr>
+                <tr><td><code>/chart [город]</code></td><td>Построение графика изменения скорости ветра</td><td><code>/chart Владивосток</code></td></tr>
+                <tr><td><code>/rose [город]</code></td><td>Диаграмма «Роза ветров» (направления)</td><td><code>/rose Дахаб</code></td></tr>
+                <tr><td><code>/map [город]</code></td><td>Ссылка на живую карту ветра Windy.com</td><td><code>/map СПб</code></td></tr>
+                <tr><td><code>/track [город]</code></td><td>Добавить город в список Избранного</td><td><code>/track Сочи</code></td></tr>
+                <tr><td><code>/untrack [город]</code></td><td>Удалить город из списка Избранного</td><td><code>/untrack Сочи</code></td></tr>
+                <tr><td><code>/mywind</code></td><td>Ветер по всем избранным городам + сравнение</td><td><code>/mywind</code></td></tr>
+                <tr><td><code>/alert [скорость]</code></td><td>Включить авто-уведомление при ветре > X м/с</td><td><code>/alert 10</code></td></tr>
+                <tr><td><code>/alert off</code></td><td>Отключить авто-уведомления</td><td><code>/alert off</code></td></tr>
+                <tr><td><code>/alert_status</code></td><td>Проверить текущий статус алертов</td><td><code>/alert_status</code></td></tr>
+                <tr><td><code>/help</code></td><td>Справка по всем функциям и командам</td><td><code>/help</code></td></tr>
+            </tbody>
+        </table>
+
+        <h2>3. Руководство по шагам</h2>
+        <div class="step-box">
+            <div class="step-title">📌 1. Быстрый запрос ветра</div>
+            <div>Отправьте боту название любого города (например, "Анапа"). В ответ вы получите красивую карточку со свежими данными и интерактивными кнопками обновления и отправки карт.</div>
+        </div>
+        <div class="step-box">
+            <div class="step-title">📌 2. Настройка авто-оповещений (Алерт)</div>
+            <div>Наберите команду <code>/alert 10</code>. Бот начнет каждые 30 минут проверять ветер во всех ваших избранных городах и сразу пришлет пуш-сообщение в Telegram, если скорость достигнет 10 м/с или выше.</div>
+        </div>
+        <div class="step-box">
+            <div class="step-title">📌 3. Сравнение спотов для катания</div>
+            <div>Добавьте города командой <code>/track [город]</code>. При нажатии на кнопку "Сравнительный график" бот построит единую диаграмму со всеми трендами ветра на одной временной оси.</div>
+        </div>
+    </div>
+</body>
+</html>
