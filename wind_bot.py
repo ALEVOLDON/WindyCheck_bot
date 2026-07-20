@@ -399,6 +399,167 @@ def get_start_keyboard():
          InlineKeyboardButton(text="❓ Помощь", callback_data="help")]
     ])
 
+# ===== ЛОГИЧЕСКИЕ ОБРАБОТЧИКИ (ОТДЕЛЕНЫ ОТ КОМАНД И CALLBACKS) =====
+
+async def show_city_wind(user_id: int, city: str, send_func):
+    data, err = await get_current_wind(city)
+    if err:
+        await send_func(f"❌ {err}")
+        return
+        
+    user_data[user_id]["last_city"] = data["city"]
+    record_wind_history(user_id, data["city"], data["speed"], data["deg"], data["timestamp"])
+    
+    kb = InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text="🔄 Обновить", callback_data=f"refresh:{data['city']}")],
+        [InlineKeyboardButton(text="📊 График", callback_data=f"chart:{data['city']}")],
+        [InlineKeyboardButton(text="📅 Прогноз 24ч", callback_data=f"forecast:{data['city']}")],
+        [InlineKeyboardButton(text="📅 На неделю (7д)", callback_data=f"week:{data['city']}")],
+        [InlineKeyboardButton(text="🗺️ Карта Windy", callback_data=f"map:{data['city']}")],
+        [InlineKeyboardButton(text="📍 В избранное", callback_data=f"track:{data['city']}")],
+        [InlineKeyboardButton(text="🏠 Меню", callback_data="start_menu")]
+    ])
+    
+    await send_func(format_wind(data), reply_markup=kb, parse_mode=ParseMode.HTML)
+
+async def show_city_week_forecast(user_id: int, city: str, send_func):
+    now = datetime.now()
+    cache = user_data[user_id]["weekly_cache"].get(city.lower())
+    
+    if cache:
+        try:
+            cache_time = datetime.strptime(cache["timestamp"], "%Y-%m-%d %H:%M:%S")
+            if now - cache_time < timedelta(hours=12):
+                await send_func(cache["text"], parse_mode=ParseMode.HTML)
+                return
+        except Exception:
+            pass
+            
+    raw_forecasts, city_name, err = await get_forecast_raw(city)
+    if err:
+        await send_func(f"❌ {err}")
+        return
+        
+    daily_data = defaultdict(list)
+    for f in raw_forecasts:
+        day_str = f["time"].strftime("%d.%m (%a)")
+        daily_data[day_str].append(f)
+        
+    lines = [f"📅 <b>Прогноз погоды и ветра на неделю: {city_name}</b>\n<i>(Перепроверка раз в день)</i>\n"]
+    
+    for day_str, items in list(daily_data.items())[:6]:
+        speeds = [item["speed"] for item in items]
+        gusts = [item.get("gust", 0) for item in items]
+        temps = [item["temp"] for item in items]
+        degs = [item["deg"] for item in items]
+        
+        avg_speed = sum(speeds) / len(speeds)
+        max_speed = max(speeds)
+        max_gust = max(gusts) if gusts else 0
+        min_temp = min(temps)
+        max_temp = max(temps)
+        prev_deg = degs[len(degs)//2]
+        
+        e = wind_emoji(avg_speed)
+        d = wind_direction(prev_deg)
+        desc = items[0]["description"].capitalize()
+        rating = spot_rating(avg_speed)
+        
+        day_text = (
+            f"<b>{day_str}</b> {e}\n"
+            f"  💨 Ветер: <b>{min(speeds):.1f} - {max_speed:.1f} м/с</b> (ср. {avg_speed:.1f}), {d}\n"
+        )
+        if max_gust > max_speed:
+            day_text += f"  ⚡ Порывы: до <b>{max_gust:.1f} м/с</b>\n"
+        day_text += f"  🌡️ Температура: <b>{min_temp:.0f}°C ... {max_temp:.0f}°C</b> ({desc})\n"
+        day_text += f"  <i>{rating}</i>\n"
+        lines.append(day_text)
+        
+    full_text = "\n".join(lines)
+    
+    user_data[user_id]["weekly_cache"][city.lower()] = {
+        "timestamp": now.strftime("%Y-%m-%d %H:%M:%S"),
+        "text": full_text
+    }
+    save_user_data()
+    
+    kb = InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text="📊 Подробный график", callback_data=f"chart:{city_name}")],
+        [InlineKeyboardButton(text="🏠 Главное меню", callback_data="start_menu")]
+    ])
+    await send_func(full_text, reply_markup=kb, parse_mode=ParseMode.HTML)
+
+async def show_city_chart(user_id: int, city: str, send_photo_func, send_text_func):
+    raw_forecasts, city_name, err = await get_forecast_raw(city)
+    if err or not raw_forecasts:
+        await send_text_func(f"❌ {err or 'Не удалось получить данные для графика.'}")
+        return
+        
+    chart_buf = await create_detailed_infographic_chart(raw_forecasts[:16], city_name)
+    kb = InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text="📅 На неделю", callback_data=f"week:{city_name}")],
+        [InlineKeyboardButton(text="🏠 Меню", callback_data="start_menu")]
+    ])
+    
+    await send_photo_func(
+        types.BufferedInputFile(chart_buf.getvalue(), filename="chart.png"),
+        caption=f"📊 <b>Информативный график метео-анализа: {city_name}</b>\n(Скорость, Порывы, Пороговые линии, Температура, Давление)",
+        reply_markup=kb, parse_mode=ParseMode.HTML
+    )
+
+async def show_city_forecast_24h(user_id: int, city: str, send_photo_func, send_text_func):
+    raw_forecasts, city_name, err = await get_forecast_raw(city)
+    if err:
+        await send_text_func(f"❌ {err}")
+        return
+    
+    forecasts = raw_forecasts[:8]  # 24 часа
+    text = f"📅 <b>Прогноз ветра: {city_name}</b> (24 часа)\n\n"
+    for f in forecasts:
+        e = wind_emoji(f["speed"])
+        d = wind_direction(f["deg"])
+        text += (
+            f"{e} <b>{f['time'].strftime('%H:%M')}</b> — "
+            f"{f['speed']:.1f} м/с, {d}"
+        )
+        if f.get("gust", 0) > 0:
+            text += f" (порывы {f['gust']:.1f})"
+        text += f", {f['temp']:.0f}°C\n"
+    
+    chart_buf = await create_detailed_infographic_chart(forecasts, city_name)
+    kb = InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text="📅 Прогноз на неделю", callback_data=f"week:{city_name}")],
+        [InlineKeyboardButton(text="🏠 Меню", callback_data="start_menu")]
+    ])
+    
+    if chart_buf:
+        await send_photo_func(
+            types.BufferedInputFile(chart_buf.getvalue(), filename="forecast.png"),
+            caption=text, reply_markup=kb, parse_mode=ParseMode.HTML
+        )
+    else:
+        await send_text_func(text, reply_markup=kb, parse_mode=ParseMode.HTML)
+
+async def show_city_map(user_id: int, city: str, send_func):
+    data, err = await get_current_wind(city)
+    if err:
+        await send_func(f"❌ {err}")
+        return
+    
+    lat, lon = data["lat"], data["lon"]
+    map_url = f"https://www.windy.com/?{lat},{lon},9"
+    kb = InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text="🗺️ Открыть карту Windy.com", url=map_url)],
+        [InlineKeyboardButton(text="🏠 Меню", callback_data="start_menu")]
+    ])
+    
+    await send_func(
+        f"🗺️ <b>Интерактивная карта ветров: {data['city']}</b>\n\n"
+        f"📍 Координаты: {lat:.4f}, {lon:.4f}\n"
+        f"Нажми кнопку ниже для перехода на интерактивную карту Windy.com.",
+        reply_markup=kb, parse_mode=ParseMode.HTML
+    )
+
 # ===== КОМАНДЫ =====
 
 @dp.message(Command("start"))
@@ -447,7 +608,6 @@ async def cmd_help(message: types.Message):
 
 @dp.message(Command("spb"))
 async def cmd_spb(message: types.Message):
-    """Открывает меню спотов Санкт-Петербурга."""
     kb_rows = []
     for key, data in SPB_SPOTS.items():
         kb_rows.append([InlineKeyboardButton(text=data["name"], callback_data=f"spot:{key}")])
@@ -462,199 +622,41 @@ async def cmd_spb(message: types.Message):
 
 @dp.message(Command("week"))
 async def cmd_week(message: types.Message):
-    """Прогноз на неделю (5-7 дней) с разбивкой по дням."""
     args = message.text.split(maxsplit=1)
     uid = message.from_user.id
-    
-    if len(args) < 2:
-        city = user_data[uid]["last_city"] or "Санкт-Петербург"
-    else:
-        city = args[1].strip()
-        
+    city = args[1].strip() if len(args) >= 2 else (user_data[uid]["last_city"] or "Санкт-Петербург")
     await message.bot.send_chat_action(message.chat.id, "typing")
-    
-    now = datetime.now()
-    cache = user_data[uid]["weekly_cache"].get(city.lower())
-    
-    if cache:
-        try:
-            cache_time = datetime.strptime(cache["timestamp"], "%Y-%m-%d %H:%M:%S")
-            if now - cache_time < timedelta(hours=12):
-                await message.answer(cache["text"], parse_mode=ParseMode.HTML)
-                return
-        except Exception:
-            pass
-            
-    raw_forecasts, city_name, err = await get_forecast_raw(city)
-    if err:
-        await message.answer(f"❌ {err}")
-        return
-        
-    daily_data = defaultdict(list)
-    for f in raw_forecasts:
-        day_str = f["time"].strftime("%d.%m (%a)")
-        daily_data[day_str].append(f)
-        
-    lines = [f"📅 <b>Прогноз погоды и ветра на неделю: {city_name}</b>\n<i>(Перепроверка раз в день)</i>\n"]
-    
-    for day_str, items in list(daily_data.items())[:6]:
-        speeds = [item["speed"] for item in items]
-        gusts = [item.get("gust", 0) for item in items]
-        temps = [item["temp"] for item in items]
-        degs = [item["deg"] for item in items]
-        
-        avg_speed = sum(speeds) / len(speeds)
-        max_speed = max(speeds)
-        max_gust = max(gusts) if gusts else 0
-        min_temp = min(temps)
-        max_temp = max(temps)
-        prev_deg = degs[len(degs)//2]
-        
-        e = wind_emoji(avg_speed)
-        d = wind_direction(prev_deg)
-        desc = items[0]["description"].capitalize()
-        rating = spot_rating(avg_speed)
-        
-        day_text = (
-            f"<b>{day_str}</b> {e}\n"
-            f"  💨 Ветер: <b>{min(speeds):.1f} - {max_speed:.1f} м/с</b> (ср. {avg_speed:.1f}), {d}\n"
-        )
-        if max_gust > max_speed:
-            day_text += f"  ⚡ Порывы: до <b>{max_gust:.1f} м/с</b>\n"
-        day_text += f"  🌡️ Температура: <b>{min_temp:.0f}°C ... {max_temp:.0f}°C</b> ({desc})\n"
-        day_text += f"  <i>{rating}</i>\n"
-        lines.append(day_text)
-        
-    full_text = "\n".join(lines)
-    
-    user_data[uid]["weekly_cache"][city.lower()] = {
-        "timestamp": now.strftime("%Y-%m-%d %H:%M:%S"),
-        "text": full_text
-    }
-    save_user_data()
-    
-    kb = InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton(text="📊 Подробный график", callback_data=f"chart:{city_name}")],
-        [InlineKeyboardButton(text="🏠 Главное меню", callback_data="start_menu")]
-    ])
-    await message.answer(full_text, reply_markup=kb, parse_mode=ParseMode.HTML)
+    await show_city_week_forecast(uid, city, message.answer)
 
 @dp.message(Command("wind"))
 async def cmd_wind(message: types.Message):
     args = message.text.split(maxsplit=1)
     uid = message.from_user.id
-    
-    if len(args) < 2:
-        city = user_data[uid]["last_city"] or "Санкт-Петербург"
-    else:
-        city = args[1].strip()
-    
+    city = args[1].strip() if len(args) >= 2 else (user_data[uid]["last_city"] or "Санкт-Петербург")
     await message.bot.send_chat_action(message.chat.id, "typing")
-    data, err = await get_current_wind(city)
-    if err:
-        await message.answer(f"❌ {err}")
-        return
-        
-    user_data[uid]["last_city"] = data["city"]
-    record_wind_history(uid, data["city"], data["speed"], data["deg"], data["timestamp"])
-    
-    kb = InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton(text="🔄 Обновить", callback_data=f"refresh:{data['city']}")],
-        [InlineKeyboardButton(text="📊 График", callback_data=f"chart:{data['city']}")],
-        [InlineKeyboardButton(text="📅 Прогноз 24ч", callback_data=f"forecast:{data['city']}")],
-        [InlineKeyboardButton(text="📅 На неделю (7д)", callback_data=f"week:{data['city']}")],
-        [InlineKeyboardButton(text="🗺️ Карта Windy", callback_data=f"map:{data['city']}")],
-        [InlineKeyboardButton(text="📍 В избранное", callback_data=f"track:{data['city']}")],
-        [InlineKeyboardButton(text="🏠 Меню", callback_data="start_menu")]
-    ])
-    
-    await message.answer(format_wind(data), reply_markup=kb, parse_mode=ParseMode.HTML)
+    await show_city_wind(uid, city, message.answer)
 
 @dp.message(Command("forecast"))
 async def cmd_forecast(message: types.Message):
     args = message.text.split(maxsplit=1)
     uid = message.from_user.id
-    
-    if len(args) < 2:
-        city = user_data[uid]["last_city"] or "Санкт-Петербург"
-    else:
-        city = args[1].strip()
-    
+    city = args[1].strip() if len(args) >= 2 else (user_data[uid]["last_city"] or "Санкт-Петербург")
     await message.bot.send_chat_action(message.chat.id, "typing")
-    raw_forecasts, city_name, err = await get_forecast_raw(city)
-    
-    if err:
-        await message.answer(f"❌ {err}")
-        return
-    
-    forecasts = raw_forecasts[:8]  # 24 часа
-    text = f"📅 <b>Прогноз ветра: {city_name}</b> (24 часа)\n\n"
-    for f in forecasts:
-        e = wind_emoji(f["speed"])
-        d = wind_direction(f["deg"])
-        text += (
-            f"{e} <b>{f['time'].strftime('%H:%M')}</b> — "
-            f"{f['speed']:.1f} м/с, {d}"
-        )
-        if f.get("gust", 0) > 0:
-            text += f" (порывы {f['gust']:.1f})"
-        text += f", {f['temp']:.0f}°C\n"
-    
-    chart_buf = await create_detailed_infographic_chart(forecasts, city_name)
-    
-    kb = InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton(text="📅 Прогноз на неделю", callback_data=f"week:{city_name}")],
-        [InlineKeyboardButton(text="🏠 Меню", callback_data="start_menu")]
-    ])
-    
-    if chart_buf:
-        await message.answer_photo(
-            types.BufferedInputFile(chart_buf.getvalue(), filename="forecast.png"),
-            caption=text, reply_markup=kb, parse_mode=ParseMode.HTML
-        )
-    else:
-        await message.answer(text, reply_markup=kb, parse_mode=ParseMode.HTML)
+    await show_city_forecast_24h(uid, city, message.answer_photo, message.answer)
 
 @dp.message(Command("chart"))
 async def cmd_chart(message: types.Message):
     args = message.text.split(maxsplit=1)
     uid = message.from_user.id
-    
-    if len(args) < 2:
-        city = user_data[uid]["last_city"] or "Санкт-Петербург"
-    else:
-        city = args[1].strip()
-    
+    city = args[1].strip() if len(args) >= 2 else (user_data[uid]["last_city"] or "Санкт-Петербург")
     await message.bot.send_chat_action(message.chat.id, "upload_photo")
-    raw_forecasts, city_name, err = await get_forecast_raw(city)
-    
-    if err or not raw_forecasts:
-        await message.answer(f"❌ {err or 'Не удалось получить данные для графика.'}")
-        return
-        
-    chart_buf = await create_detailed_infographic_chart(raw_forecasts[:16], city_name)
-    
-    kb = InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton(text="📅 На неделю", callback_data=f"week:{city_name}")],
-        [InlineKeyboardButton(text="🏠 Меню", callback_data="start_menu")]
-    ])
-    
-    await message.answer_photo(
-        types.BufferedInputFile(chart_buf.getvalue(), filename="chart.png"),
-        caption=f"📊 <b>Информативный график метео-анализа: {city_name}</b>\n(Скорость, Порывы, Пороговые линии, Температура, Давление)",
-        reply_markup=kb, parse_mode=ParseMode.HTML
-    )
+    await show_city_chart(uid, city, message.answer_photo, message.answer)
 
 @dp.message(Command("rose"))
 async def cmd_rose(message: types.Message):
     args = message.text.split(maxsplit=1)
     uid = message.from_user.id
-    
-    if len(args) < 2:
-        city = user_data[uid]["last_city"] or "Санкт-Петербург"
-    else:
-        city = args[1].strip()
-    
+    city = args[1].strip() if len(args) >= 2 else (user_data[uid]["last_city"] or "Санкт-Петербург")
     history = user_data[uid]["wind_history"].get(city.lower(), [])
     rose_buf = await create_wind_rose(history, city)
     
@@ -668,7 +670,6 @@ async def cmd_rose(message: types.Message):
     kb = InlineKeyboardMarkup(inline_keyboard=[
         [InlineKeyboardButton(text="🏠 Меню", callback_data="start_menu")]
     ])
-    
     await message.answer_photo(
         types.BufferedInputFile(rose_buf.getvalue(), filename="rose.png"),
         caption=f"🧭 <b>Роза ветров: {city}</b>\n\nПоказывает преобладающие направления ветра.",
@@ -679,33 +680,9 @@ async def cmd_rose(message: types.Message):
 async def cmd_map(message: types.Message):
     args = message.text.split(maxsplit=1)
     uid = message.from_user.id
-    
-    if len(args) < 2:
-        city = user_data[uid]["last_city"] or "Санкт-Петербург"
-    else:
-        city = args[1].strip()
-    
+    city = args[1].strip() if len(args) >= 2 else (user_data[uid]["last_city"] or "Санкт-Петербург")
     await message.bot.send_chat_action(message.chat.id, "typing")
-    data, err = await get_current_wind(city)
-    
-    if err:
-        await message.answer(f"❌ {err}")
-        return
-    
-    lat, lon = data["lat"], data["lon"]
-    map_url = f"https://www.windy.com/?{lat},{lon},9"
-    
-    kb = InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton(text="🗺️ Открыть карту Windy.com", url=map_url)],
-        [InlineKeyboardButton(text="🏠 Меню", callback_data="start_menu")]
-    ])
-    
-    await message.answer(
-        f"🗺️ <b>Интерактивная карта ветров: {data['city']}</b>\n\n"
-        f"📍 Координаты: {lat:.4f}, {lon:.4f}\n"
-        f"Нажми кнопку ниже для перехода на интерактивную карту Windy.com.",
-        reply_markup=kb, parse_mode=ParseMode.HTML
-    )
+    await show_city_map(uid, city, message.answer)
 
 @dp.message(Command("track"))
 async def cmd_track(message: types.Message):
@@ -716,7 +693,6 @@ async def cmd_track(message: types.Message):
     
     city = args[1].strip()
     uid = message.from_user.id
-    
     data, err = await get_current_wind(city)
     if err:
         await message.answer(f"❌ {err}")
@@ -911,29 +887,23 @@ async def cb_check_wind(callback: types.CallbackQuery):
 
 @dp.callback_query(F.data == "charts_menu")
 async def cb_charts_menu(callback: types.CallbackQuery):
-    city = user_data[callback.from_user.id]["last_city"] or "Санкт-Петербург"
-    message = callback.message
-    message.text = f"/chart {city}"
-    message.from_user = callback.from_user
-    await cmd_chart(message)
+    uid = callback.from_user.id
+    city = user_data[uid]["last_city"] or "Санкт-Петербург"
+    await show_city_chart(uid, city, callback.message.answer_photo, callback.message.answer)
     await callback.answer()
 
 @dp.callback_query(F.data == "week_prompt")
 async def cb_week_prompt(callback: types.CallbackQuery):
-    city = user_data[callback.from_user.id]["last_city"] or "Санкт-Петербург"
-    message = callback.message
-    message.text = f"/week {city}"
-    message.from_user = callback.from_user
-    await cmd_week(message)
+    uid = callback.from_user.id
+    city = user_data[uid]["last_city"] or "Санкт-Петербург"
+    await show_city_week_forecast(uid, city, callback.message.answer)
     await callback.answer()
 
 @dp.callback_query(F.data.startswith("week:"))
 async def cb_week_city(callback: types.CallbackQuery):
     city = callback.data.split(":", 1)[1]
-    message = callback.message
-    message.text = f"/week {city}"
-    message.from_user = callback.from_user
-    await cmd_week(message)
+    uid = callback.from_user.id
+    await show_city_week_forecast(uid, city, callback.message.answer)
     await callback.answer()
 
 @dp.callback_query(F.data == "my_tracking")
@@ -1000,28 +970,22 @@ async def cb_refresh(callback: types.CallbackQuery):
 @dp.callback_query(F.data.startswith("chart:"))
 async def cb_chart(callback: types.CallbackQuery):
     city = callback.data.split(":", 1)[1]
-    message = callback.message
-    message.text = f"/chart {city}"
-    message.from_user = callback.from_user
-    await cmd_chart(message)
+    uid = callback.from_user.id
+    await show_city_chart(uid, city, callback.message.answer_photo, callback.message.answer)
     await callback.answer()
 
 @dp.callback_query(F.data.startswith("forecast:"))
 async def cb_forecast(callback: types.CallbackQuery):
     city = callback.data.split(":", 1)[1]
-    message = callback.message
-    message.text = f"/forecast {city}"
-    message.from_user = callback.from_user
-    await cmd_forecast(message)
+    uid = callback.from_user.id
+    await show_city_forecast_24h(uid, city, callback.message.answer_photo, callback.message.answer)
     await callback.answer()
 
 @dp.callback_query(F.data.startswith("map:"))
 async def cb_map(callback: types.CallbackQuery):
     city = callback.data.split(":", 1)[1]
-    message = callback.message
-    message.text = f"/map {city}"
-    message.from_user = callback.from_user
-    await cmd_map(message)
+    uid = callback.from_user.id
+    await show_city_map(uid, city, callback.message.answer)
     await callback.answer()
 
 @dp.callback_query(F.data.startswith("track:"))
