@@ -1,6 +1,7 @@
 import os
 import sys
 import json
+import re
 import asyncio
 import logging
 import io
@@ -33,40 +34,66 @@ DATA_FILE = "user_data.json"
 SPB_SPOTS = {
     "sestroretsk": {
         "name": "Сестрорецк / Дюны 🏖️",
+        "search_city": "Сестрорецк",
         "lat": 59.973, "lon": 29.962,
         "desc": "Финский залив, популярнейший кайт- и виндсерф спот"
     },
     "kronstadt": {
         "name": "Кронштадт / Дамба ⚓",
+        "search_city": "Кронштадт",
         "lat": 59.992, "lon": 29.771,
         "desc": "Северная и Южная дамбы, идеальны при западных ветрах"
     },
     "lakhta": {
         "name": "Лахта / Невская губа 🏢",
+        "search_city": "Санкт-Петербург",
         "lat": 59.983, "lon": 30.183,
         "desc": "Акватория у Лахта Центра, открытая зона Невской губы"
     },
     "zelenogorsk": {
         "name": "Зеленогорск 🌲",
+        "search_city": "Зеленогорск",
         "lat": 60.191, "lon": 29.704,
         "desc": "Северный берег залива, песчаный пляж"
     },
     "kokorevo": {
         "name": "Кокорево / Ладога ⛵",
+        "search_city": "Шлиссельбург",
         "lat": 60.052, "lon": 31.077,
         "desc": "Ладожское озеро, отличный спот при восточных ветрах"
     },
     "sosnovy_bor": {
         "name": "Сосновый Бор 🏖️",
+        "search_city": "Сосновый Бор",
         "lat": 59.897, "lon": 29.088,
         "desc": "Южный берег Финского залива, Липовский пляж"
     },
     "komarovo": {
         "name": "Комарово 🌅",
+        "search_city": "Комарово",
         "lat": 60.181, "lon": 29.802,
         "desc": "Песчаное мелководье, популярно для виндсерфинга"
     }
 }
+
+def resolve_location(query: str):
+    """Преобразует строку запроса (даже с эмодзи/спотами) в чистый город или GPS координаты."""
+    if not query:
+        return "Санкт-Петербург", None, None, "Санкт-Петербург"
+        
+    clean_q = query.strip()
+    
+    # 1. Проверяем совпадение со спотами СПб
+    for key, spot in SPB_SPOTS.items():
+        if (clean_q.lower() == key.lower() or 
+            clean_q.lower() in spot["name"].lower() or 
+            spot["name"].lower() in clean_q.lower() or
+            spot["search_city"].lower() in clean_q.lower()):
+            return spot["search_city"], spot["lat"], spot["lon"], spot["name"]
+            
+    # 2. Очищаем от эмодзи и спецсимволов для обычного запроса по городу
+    cleaned = re.sub(r'[^\w\s-]', '', clean_q).strip()
+    return cleaned or clean_q, None, None, clean_q
 
 def spot_rating(speed: float) -> str:
     """Оценка условий катания на споте."""
@@ -141,6 +168,13 @@ dp = Dispatcher()
 
 async def get_current_wind(query: str, lat: float = None, lon: float = None):
     """Текущий ветер по названию или координатам. Возвращает (data_dict, error_message)."""
+    if lat is None or lon is None:
+        search_city, spot_lat, spot_lon, display_title = resolve_location(query)
+        if spot_lat is not None and spot_lon is not None:
+            lat, lon = spot_lat, spot_lon
+        else:
+            query = search_city
+
     if not OPENWEATHER_API_KEY:
         return None, "Не установлен OPENWEATHER_API_KEY в файле .env"
     
@@ -174,7 +208,7 @@ async def get_current_wind(query: str, lat: float = None, lon: float = None):
                         "timestamp": datetime.now()
                     }, None
                 elif resp.status == 404:
-                    return None, f"Локация «{query}» не найдена."
+                    return None, f"Город «{query}» не найден."
                 elif resp.status == 401:
                     return None, "Неверный OpenWeather API ключ (401 Unauthorized)."
                 else:
@@ -184,6 +218,14 @@ async def get_current_wind(query: str, lat: float = None, lon: float = None):
 
 async def get_forecast_raw(query: str, lat: float = None, lon: float = None):
     """Сырые данные прогноза на 5-7 дней. Возвращает (forecast_list, city_name, error_message)."""
+    display_title = query
+    if lat is None or lon is None:
+        search_city, spot_lat, spot_lon, display_title = resolve_location(query)
+        if spot_lat is not None and spot_lon is not None:
+            lat, lon = spot_lat, spot_lon
+        else:
+            query = search_city
+
     if not OPENWEATHER_API_KEY:
         return None, None, "Не установлен OPENWEATHER_API_KEY в файле .env"
         
@@ -199,7 +241,7 @@ async def get_forecast_raw(query: str, lat: float = None, lon: float = None):
                 if resp.status == 200:
                     d = await resp.json()
                     forecasts = []
-                    city_name = d.get("city", {}).get("name", query)
+                    city_name = d.get("city", {}).get("name", display_title)
                     for item in d.get("list", []):
                         wind = item.get("wind", {})
                         main = item.get("main", {})
@@ -399,32 +441,34 @@ def get_start_keyboard():
          InlineKeyboardButton(text="❓ Помощь", callback_data="help")]
     ])
 
-# ===== ЛОГИЧЕСКИЕ ОБРАБОТЧИКИ (ОТДЕЛЕНЫ ОТ КОМАНД И CALLBACKS) =====
+# ===== ЛОГИЧЕСКИЕ ОБРАБОТЧИКИ =====
 
 async def show_city_wind(user_id: int, city: str, send_func):
-    data, err = await get_current_wind(city)
+    search_city, lat, lon, display_title = resolve_location(city)
+    data, err = await get_current_wind(search_city, lat=lat, lon=lon)
     if err:
         await send_func(f"❌ {err}")
         return
         
-    user_data[user_id]["last_city"] = data["city"]
+    user_data[user_id]["last_city"] = display_title
     record_wind_history(user_id, data["city"], data["speed"], data["deg"], data["timestamp"])
     
     kb = InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton(text="🔄 Обновить", callback_data=f"refresh:{data['city']}")],
-        [InlineKeyboardButton(text="📊 График", callback_data=f"chart:{data['city']}")],
-        [InlineKeyboardButton(text="📅 Прогноз 24ч", callback_data=f"forecast:{data['city']}")],
-        [InlineKeyboardButton(text="📅 На неделю (7д)", callback_data=f"week:{data['city']}")],
-        [InlineKeyboardButton(text="🗺️ Карта Windy", callback_data=f"map:{data['city']}")],
-        [InlineKeyboardButton(text="📍 В избранное", callback_data=f"track:{data['city']}")],
+        [InlineKeyboardButton(text="🔄 Обновить", callback_data=f"refresh:{display_title}")],
+        [InlineKeyboardButton(text="📊 График", callback_data=f"chart:{display_title}")],
+        [InlineKeyboardButton(text="📅 Прогноз 24ч", callback_data=f"forecast:{display_title}")],
+        [InlineKeyboardButton(text="📅 На неделю (7д)", callback_data=f"week:{display_title}")],
+        [InlineKeyboardButton(text="🗺️ Карта Windy", callback_data=f"map:{display_title}")],
+        [InlineKeyboardButton(text="📍 В избранное", callback_data=f"track:{display_title}")],
         [InlineKeyboardButton(text="🏠 Меню", callback_data="start_menu")]
     ])
     
     await send_func(format_wind(data), reply_markup=kb, parse_mode=ParseMode.HTML)
 
 async def show_city_week_forecast(user_id: int, city: str, send_func):
+    search_city, lat, lon, display_title = resolve_location(city)
     now = datetime.now()
-    cache = user_data[user_id]["weekly_cache"].get(city.lower())
+    cache = user_data[user_id]["weekly_cache"].get(display_title.lower())
     
     if cache:
         try:
@@ -435,7 +479,7 @@ async def show_city_week_forecast(user_id: int, city: str, send_func):
         except Exception:
             pass
             
-    raw_forecasts, city_name, err = await get_forecast_raw(city)
+    raw_forecasts, city_name, err = await get_forecast_raw(search_city, lat=lat, lon=lon)
     if err:
         await send_func(f"❌ {err}")
         return
@@ -445,7 +489,8 @@ async def show_city_week_forecast(user_id: int, city: str, send_func):
         day_str = f["time"].strftime("%d.%m (%a)")
         daily_data[day_str].append(f)
         
-    lines = [f"📅 <b>Прогноз погоды и ветра на неделю: {city_name}</b>\n<i>(Перепроверка раз в день)</i>\n"]
+    title_name = display_title if display_title else city_name
+    lines = [f"📅 <b>Прогноз погоды и ветра на неделю: {title_name}</b>\n<i>(Перепроверка раз в день)</i>\n"]
     
     for day_str, items in list(daily_data.items())[:6]:
         speeds = [item["speed"] for item in items]
@@ -477,44 +522,48 @@ async def show_city_week_forecast(user_id: int, city: str, send_func):
         
     full_text = "\n".join(lines)
     
-    user_data[user_id]["weekly_cache"][city.lower()] = {
+    user_data[user_id]["weekly_cache"][display_title.lower()] = {
         "timestamp": now.strftime("%Y-%m-%d %H:%M:%S"),
         "text": full_text
     }
     save_user_data()
     
     kb = InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton(text="📊 Подробный график", callback_data=f"chart:{city_name}")],
+        [InlineKeyboardButton(text="📊 Подробный график", callback_data=f"chart:{display_title}")],
         [InlineKeyboardButton(text="🏠 Главное меню", callback_data="start_menu")]
     ])
     await send_func(full_text, reply_markup=kb, parse_mode=ParseMode.HTML)
 
 async def show_city_chart(user_id: int, city: str, send_photo_func, send_text_func):
-    raw_forecasts, city_name, err = await get_forecast_raw(city)
+    search_city, lat, lon, display_title = resolve_location(city)
+    raw_forecasts, city_name, err = await get_forecast_raw(search_city, lat=lat, lon=lon)
     if err or not raw_forecasts:
         await send_text_func(f"❌ {err or 'Не удалось получить данные для графика.'}")
         return
         
-    chart_buf = await create_detailed_infographic_chart(raw_forecasts[:16], city_name)
+    title_name = display_title if display_title else city_name
+    chart_buf = await create_detailed_infographic_chart(raw_forecasts[:16], title_name)
     kb = InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton(text="📅 На неделю", callback_data=f"week:{city_name}")],
+        [InlineKeyboardButton(text="📅 На неделю", callback_data=f"week:{display_title}")],
         [InlineKeyboardButton(text="🏠 Меню", callback_data="start_menu")]
     ])
     
     await send_photo_func(
         types.BufferedInputFile(chart_buf.getvalue(), filename="chart.png"),
-        caption=f"📊 <b>Информативный график метео-анализа: {city_name}</b>\n(Скорость, Порывы, Пороговые линии, Температура, Давление)",
+        caption=f"📊 <b>Информативный график метео-анализа: {title_name}</b>\n(Скорость, Порывы, Пороговые линии, Температура, Давление)",
         reply_markup=kb, parse_mode=ParseMode.HTML
     )
 
 async def show_city_forecast_24h(user_id: int, city: str, send_photo_func, send_text_func):
-    raw_forecasts, city_name, err = await get_forecast_raw(city)
+    search_city, lat, lon, display_title = resolve_location(city)
+    raw_forecasts, city_name, err = await get_forecast_raw(search_city, lat=lat, lon=lon)
     if err:
         await send_text_func(f"❌ {err}")
         return
     
+    title_name = display_title if display_title else city_name
     forecasts = raw_forecasts[:8]  # 24 часа
-    text = f"📅 <b>Прогноз ветра: {city_name}</b> (24 часа)\n\n"
+    text = f"📅 <b>Прогноз ветра: {title_name}</b> (24 часа)\n\n"
     for f in forecasts:
         e = wind_emoji(f["speed"])
         d = wind_direction(f["deg"])
@@ -526,9 +575,9 @@ async def show_city_forecast_24h(user_id: int, city: str, send_photo_func, send_
             text += f" (порывы {f['gust']:.1f})"
         text += f", {f['temp']:.0f}°C\n"
     
-    chart_buf = await create_detailed_infographic_chart(forecasts, city_name)
+    chart_buf = await create_detailed_infographic_chart(forecasts, title_name)
     kb = InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton(text="📅 Прогноз на неделю", callback_data=f"week:{city_name}")],
+        [InlineKeyboardButton(text="📅 Прогноз на неделю", callback_data=f"week:{display_title}")],
         [InlineKeyboardButton(text="🏠 Меню", callback_data="start_menu")]
     ])
     
@@ -541,21 +590,23 @@ async def show_city_forecast_24h(user_id: int, city: str, send_photo_func, send_
         await send_text_func(text, reply_markup=kb, parse_mode=ParseMode.HTML)
 
 async def show_city_map(user_id: int, city: str, send_func):
-    data, err = await get_current_wind(city)
+    search_city, lat, lon, display_title = resolve_location(city)
+    data, err = await get_current_wind(search_city, lat=lat, lon=lon)
     if err:
         await send_func(f"❌ {err}")
         return
     
-    lat, lon = data["lat"], data["lon"]
-    map_url = f"https://www.windy.com/?{lat},{lon},9"
+    spot_lat = data["lat"] if lat is None else lat
+    spot_lon = data["lon"] if lon is None else lon
+    map_url = f"https://www.windy.com/?{spot_lat},{spot_lon},9"
     kb = InlineKeyboardMarkup(inline_keyboard=[
         [InlineKeyboardButton(text="🗺️ Открыть карту Windy.com", url=map_url)],
         [InlineKeyboardButton(text="🏠 Меню", callback_data="start_menu")]
     ])
     
     await send_func(
-        f"🗺️ <b>Интерактивная карта ветров: {data['city']}</b>\n\n"
-        f"📍 Координаты: {lat:.4f}, {lon:.4f}\n"
+        f"🗺️ <b>Интерактивная карта ветров: {display_title}</b>\n\n"
+        f"📍 Координаты: {spot_lat:.4f}, {spot_lon:.4f}\n"
         f"Нажми кнопку ниже для перехода на интерактивную карту Windy.com.",
         reply_markup=kb, parse_mode=ParseMode.HTML
     )
@@ -657,13 +708,14 @@ async def cmd_rose(message: types.Message):
     args = message.text.split(maxsplit=1)
     uid = message.from_user.id
     city = args[1].strip() if len(args) >= 2 else (user_data[uid]["last_city"] or "Санкт-Петербург")
-    history = user_data[uid]["wind_history"].get(city.lower(), [])
-    rose_buf = await create_wind_rose(history, city)
+    search_city, lat, lon, display_title = resolve_location(city)
+    history = user_data[uid]["wind_history"].get(search_city.lower(), []) or user_data[uid]["wind_history"].get(display_title.lower(), [])
+    rose_buf = await create_wind_rose(history, display_title)
     
     if not rose_buf:
         await message.answer(
-            f"🧭 Недостаточно данных для розы ветров «{city}».\n"
-            f"Запроси ветер несколько раз: /wind {city}"
+            f"🧭 Недостаточно данных для розы ветров «{display_title}».\n"
+            f"Запроси ветер несколько раз: /wind {display_title}"
         )
         return
     
@@ -672,7 +724,7 @@ async def cmd_rose(message: types.Message):
     ])
     await message.answer_photo(
         types.BufferedInputFile(rose_buf.getvalue(), filename="rose.png"),
-        caption=f"🧭 <b>Роза ветров: {city}</b>\n\nПоказывает преобладающие направления ветра.",
+        caption=f"🧭 <b>Роза ветров: {display_title}</b>\n\nПоказывает преобладающие направления ветра.",
         reply_markup=kb, parse_mode=ParseMode.HTML
     )
 
@@ -693,22 +745,23 @@ async def cmd_track(message: types.Message):
     
     city = args[1].strip()
     uid = message.from_user.id
-    data, err = await get_current_wind(city)
+    search_city, lat, lon, display_title = resolve_location(city)
+    data, err = await get_current_wind(search_city, lat=lat, lon=lon)
     if err:
         await message.answer(f"❌ {err}")
         return
     
     cities = user_data[uid]["cities"]
-    if data["city"].lower() not in [c.lower() for c in cities]:
-        cities.append(data["city"])
+    if display_title.lower() not in [c.lower() for c in cities]:
+        cities.append(display_title)
         save_user_data()
         await message.answer(
-            f"✅ <b>{data['city']}</b> добавлен в избранное!\n\n"
+            f"✅ <b>{display_title}</b> добавлен в избранное!\n\n"
             f"Используй /mywind для быстрого просмотра.",
             parse_mode=ParseMode.HTML
         )
     else:
-        await message.answer(f"⚠️ <b>{data['city']}</b> уже в избранном.", parse_mode=ParseMode.HTML)
+        await message.answer(f"⚠️ <b>{display_title}</b> уже в избранном.", parse_mode=ParseMode.HTML)
 
 @dp.message(Command("untrack"))
 async def cmd_untrack(message: types.Message):
@@ -749,14 +802,15 @@ async def cmd_mywind(message: types.Message):
     
     results = []
     for city in cities:
-        data, err = await get_current_wind(city)
+        search_city, lat, lon, display_title = resolve_location(city)
+        data, err = await get_current_wind(search_city, lat=lat, lon=lon)
         if data:
             e = wind_emoji(data["speed"])
             results.append(
-                f"{e} <b>{data['city']}</b>: "
+                f"{e} <b>{display_title}</b>: "
                 f"{data['speed']:.1f} м/с, {wind_direction(data['deg'])}"
             )
-            record_wind_history(uid, data["city"], data["speed"], data["deg"], data["timestamp"])
+            record_wind_history(uid, display_title, data["speed"], data["deg"], data["timestamp"])
     
     kb = InlineKeyboardMarkup(inline_keyboard=[
         [InlineKeyboardButton(text="🔄 Обновить все", callback_data="refresh_all")],
@@ -834,7 +888,7 @@ async def cb_spot_select(callback: types.CallbackQuery):
         return
         
     await callback.bot.send_chat_action(callback.message.chat.id, "typing")
-    data, err = await get_current_wind(spot["name"], lat=spot["lat"], lon=spot["lon"])
+    data, err = await get_current_wind(spot["search_city"], lat=spot["lat"], lon=spot["lon"])
     
     if err:
         await callback.message.answer(f"❌ {err}")
@@ -850,8 +904,8 @@ async def cb_spot_select(callback: types.CallbackQuery):
     
     kb = InlineKeyboardMarkup(inline_keyboard=[
         [InlineKeyboardButton(text="🗺️ Открыть спот на Windy.com", url=map_url)],
-        [InlineKeyboardButton(text="📊 Подробный график", callback_data=f"chart:{spot['name']}")],
-        [InlineKeyboardButton(text="📅 Прогноз на неделю", callback_data=f"week:{spot['name']}")],
+        [InlineKeyboardButton(text="📊 Подробный график", callback_data=f"chart:{spot_key}")],
+        [InlineKeyboardButton(text="📅 Прогноз на неделю", callback_data=f"week:{spot_key}")],
         [InlineKeyboardButton(text="🏄‍♂️ Все споты СПб", callback_data="spb_spots_menu")],
         [InlineKeyboardButton(text="🏠 Главное меню", callback_data="start_menu")]
     ])
@@ -952,14 +1006,15 @@ async def cb_help(callback: types.CallbackQuery):
 async def cb_refresh(callback: types.CallbackQuery):
     city = callback.data.split(":", 1)[1]
     await callback.bot.send_chat_action(callback.message.chat.id, "typing")
-    data, err = await get_current_wind(city)
+    search_city, lat, lon, display_title = resolve_location(city)
+    data, err = await get_current_wind(search_city, lat=lat, lon=lon)
     if data:
         uid = callback.from_user.id
-        record_wind_history(uid, data["city"], data["speed"], data["deg"], data["timestamp"])
+        record_wind_history(uid, display_title, data["speed"], data["deg"], data["timestamp"])
         kb = InlineKeyboardMarkup(inline_keyboard=[
-            [InlineKeyboardButton(text="🔄 Обновить", callback_data=f"refresh:{city}")],
-            [InlineKeyboardButton(text="📊 Инфо-График", callback_data=f"chart:{city}")],
-            [InlineKeyboardButton(text="📅 На неделю", callback_data=f"week:{city}")],
+            [InlineKeyboardButton(text="🔄 Обновить", callback_data=f"refresh:{display_title}")],
+            [InlineKeyboardButton(text="📊 Инфо-График", callback_data=f"chart:{display_title}")],
+            [InlineKeyboardButton(text="📅 На неделю", callback_data=f"week:{display_title}")],
             [InlineKeyboardButton(text="🏠 Меню", callback_data="start_menu")]
         ])
         await callback.message.edit_text(format_wind(data), reply_markup=kb, parse_mode=ParseMode.HTML)
@@ -992,12 +1047,13 @@ async def cb_map(callback: types.CallbackQuery):
 async def cb_track(callback: types.CallbackQuery):
     city = callback.data.split(":", 1)[1]
     uid = callback.from_user.id
+    search_city, lat, lon, display_title = resolve_location(city)
     cities = user_data[uid]["cities"]
     
-    if city.lower() not in [c.lower() for c in cities]:
-        cities.append(city)
+    if display_title.lower() not in [c.lower() for c in cities]:
+        cities.append(display_title)
         save_user_data()
-        await callback.answer(f"✅ {city} добавлен!")
+        await callback.answer(f"✅ {display_title} добавлен!")
     else:
         await callback.answer(f"⚠️ Уже в избранном!")
 
@@ -1041,12 +1097,13 @@ async def check_alerts():
                         if now - last_alert_time < timedelta(hours=3):
                             continue
 
-                    wind_data, err = await get_current_wind(city)
+                    search_city, lat, lon, display_title = resolve_location(city)
+                    wind_data, err = await get_current_wind(search_city, lat=lat, lon=lon)
                     if wind_data and wind_data["speed"] >= threshold:
                         await bot.send_message(
                             uid,
                             f"🚨 <b>ВНИМАНИЕ! Сильный ветер!</b>\n\n"
-                            f"🌬️ <b>{wind_data['city']}</b>\n"
+                            f"🌬️ <b>{display_title}</b>\n"
                             f"💨 Скорость: <b>{wind_data['speed']:.1f} м/с</b>\n"
                             f"🧭 Направление: {wind_direction(wind_data['deg'])}\n"
                             f"⚡ Порывы: до {wind_data.get('gust', 0):.1f} м/с\n\n"
