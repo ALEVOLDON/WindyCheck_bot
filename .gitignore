@@ -20,7 +20,10 @@ venv.bak/
 *.swp
 *.swo
 
-# Temporary data / logs
+# Temporary data / database / logs
 *.json
+*.db
+*.sqlite
+*.sqlite3
 *.log
 scratch/
