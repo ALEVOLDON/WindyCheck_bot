@@ -1,0 +1,145 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>User Guide - WindyCheck Bot</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Arial, sans-serif;
+            background-color: #f8f9fa;
+            color: #202124;
+            line-height: 1.6;
+            margin: 0;
+            padding: 40px 20px;
+        }
+        .doc-page {
+            max-width: 800px;
+            margin: 0 auto;
+            background: #ffffff;
+            padding: 50px 60px;
+            border-radius: 8px;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.12), 0 1px 2px rgba(0,0,0,0.24);
+        }
+        h1 {
+            color: #1a73e8;
+            font-size: 26px;
+            text-align: center;
+            margin-bottom: 5px;
+        }
+        .subtitle {
+            text-align: center;
+            color: #5f6368;
+            font-size: 15px;
+            margin-bottom: 35px;
+        }
+        h2 {
+            color: #174ea6;
+            font-size: 18px;
+            border-bottom: 2px solid #e8eaed;
+            padding-bottom: 8px;
+            margin-top: 30px;
+        }
+        ul {
+            padding-left: 20px;
+        }
+        li {
+            margin-bottom: 10px;
+        }
+        strong {
+            color: #1a73e8;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 15px;
+            margin-bottom: 25px;
+            font-size: 14px;
+        }
+        th, td {
+            border: 1px solid #dadce0;
+            padding: 10px 14px;
+            text-align: left;
+        }
+        th {
+            background-color: #1a73e8;
+            color: #ffffff;
+            font-weight: 600;
+        }
+        tr:nth-child(even) {
+            background-color: #f8f9fa;
+        }
+        .step-box {
+            background-color: #e8f0fe;
+            border-left: 4px solid #1a73e8;
+            padding: 15px 20px;
+            margin-bottom: 15px;
+            border-radius: 0 6px 6px 0;
+        }
+        .step-title {
+            font-weight: bold;
+            color: #174ea6;
+            font-size: 15px;
+            margin-bottom: 5px;
+        }
+    </style>
+</head>
+<body>
+    <div class="doc-page">
+        <h1>🌬️ User Guide & Manual<br>Telegram Bot «WindyCheck Bot»</h1>
+        <div class="subtitle">Personal assistant for wind tracking, forecasts, analytics charts, and real-time alerts</div>
+
+        <h2>1. Key Features</h2>
+        <ul>
+            <li><strong>🌬️ Current Wind:</strong> Real-time speed (m/s), direction (degrees + compass indicator 🧭), gusts, and air temperature.</li>
+            <li><strong>📅 24-Hour Forecast:</strong> Hourly wind condition breakdown for the next 24 hours with charts.</li>
+            <li><strong>📊 Graphic Analytics:</strong> Automated generation of dual-panel PNG infographics showing wind dynamics and Wind Rose diagrams.</li>
+            <li><strong>🗺️ Interactive Maps:</strong> Direct link generation to live weather and wind maps on Windy.com for target locations.</li>
+            <li><strong>📍 Saved Spots (Favorites):</strong> Store your favorite spots in SQLite database for 1-click access.</li>
+            <li><strong>📊 Spot Comparison:</strong> Compare wind dynamics across all your saved spots on a single unified timeline.</li>
+            <li><strong>🔔 Automated Alerts:</strong> Background weather monitoring loop every 30 minutes with instant push notifications when wind speed exceeds threshold limits.</li>
+        </ul>
+
+        <h2>2. Bot Commands</h2>
+        <table>
+            <thead>
+                <tr>
+                    <th>Command</th>
+                    <th>Description</th>
+                    <th>Example Usage</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr><td><code>/start</code></td><td>Launch bot and open Main Menu</td><td><code>/start</code></td></tr>
+                <tr><td><code>/spb</code></td><td>SPb & Leningrad Region spots with riding condition ratings</td><td><code>/spb</code></td></tr>
+                <tr><td><code>/wind [city]</code></td><td>Fetch current wind speed, direction, gusts & temperature</td><td><code>/wind Dahab</code></td></tr>
+                <tr><td><code>/week [city]</code></td><td>Detailed 7-day weather forecast with caching</td><td><code>/week Sochi</code></td></tr>
+                <tr><td><code>/forecast [city]</code></td><td>Hourly 24-hour wind forecast</td><td><code>/forecast Anapa</code></td></tr>
+                <tr><td><code>/chart [city]</code></td><td>Dual-panel infographic meteorology chart</td><td><code>/chart Tarifa</code></td></tr>
+                <tr><td><code>/rose [city]</code></td><td>Wind Rose polar direction diagram</td><td><code>/rose Vladivostok</code></td></tr>
+                <tr><td><code>/map [city]</code></td><td>Direct link to live Windy.com map</td><td><code>/map SPb</code></td></tr>
+                <tr><td><code>/track [city]</code></td><td>Add location to Favorites</td><td><code>/track Sochi</code></td></tr>
+                <tr><td><code>/untrack [city]</code></td><td>Remove location from Favorites</td><td><code>/untrack Sochi</code></td></tr>
+                <tr><td><code>/mywind</code></td><td>Current wind summary for all saved locations</td><td><code>/mywind</code></td></tr>
+                <tr><td><code>/alert [speed]</code></td><td>Enable push notifications for wind > X m/s</td><td><code>/alert 10</code></td></tr>
+                <tr><td><code>/alert off</code></td><td>Disable wind notifications</td><td><code>/alert off</code></td></tr>
+                <tr><td><code>/alert_status</code></td><td>Check current alert status</td><td><code>/alert_status</code></td></tr>
+                <tr><td><code>/help</code></td><td>Help manual and command guide</td><td><code>/help</code></td></tr>
+            </tbody>
+        </table>
+
+        <h2>3. Step-by-Step Guide</h2>
+        <div class="step-box">
+            <div class="step-title">📌 1. Quick Wind Check</div>
+            <div>Send the bot any city name (e.g., "Dahab"). You will receive a rich data card with live weather parameters and interactive buttons to refresh or view live maps.</div>
+        </div>
+        <div class="step-box">
+            <div class="step-title">📌 2. Setting Up Wind Alerts</div>
+            <div>Type <code>/alert 10</code>. The bot will check weather across your favorite spots every 30 minutes and send an instant push notification when wind speed hits 10 m/s or higher.</div>
+        </div>
+        <div class="step-box">
+            <div class="step-title">📌 3. Comparing Watersport Spots</div>
+            <div>Save your favorite locations using <code>/track [city]</code>. Tap the "Comparative Chart" button to render a unified timeline chart displaying wind trends for all tracked spots.</div>
+        </div>
+    </div>
+</body>
+</html>

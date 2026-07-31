@@ -31,8 +31,9 @@ Specifically tailored for windsurfers, kitesurfers, sailors, paragliders, and ou
 ## 📖 User Documentation
 
 Full user guides are included in the repository:
-* 📄 **[User Manual (DOCX)](Wind_Tracker_Bot_Instruction.docx)** — Microsoft Word document format.
-* 🌐 **[User Manual (HTML)](Wind_Tracker_Bot_Instruction.html)** — Styled interactive web page guide for desktop and mobile browsers.
+* 🌐 **[User Manual (English HTML)](Wind_Tracker_Bot_Instruction.en.html)** — Interactive styled web guide in English.
+* 📄 **[User Manual (Russian DOCX)](Wind_Tracker_Bot_Instruction.docx)** — Microsoft Word document format.
+* 🌐 **[User Manual (Russian HTML)](Wind_Tracker_Bot_Instruction.html)** — Interactive web page guide in Russian.
 
 ---
 
