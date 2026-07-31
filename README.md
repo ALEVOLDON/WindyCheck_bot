@@ -1,109 +1,109 @@
 # 🌬️ WindyCheck Telegram Bot
 
-🇷🇺 **Русский** | [🇬🇧 English](README.en.md)
+🇬🇧 **English** | [🇷🇺 Русский](README.ru.md)
 
-![WindyCheck Bot Cover](assets/cover.jpg)
+![WindyCheck Bot Cover](assets/cover_en.jpg)
 
 [![Python 3.10+](https://img.shields.io/badge/python-3.10+-blue.svg)](https://www.python.org/downloads/)
 [![aiogram 3.x](https://img.shields.io/badge/aiogram-3.x-blueviolet.svg)](https://docs.aiogram.dev/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
-**WindyCheck Bot** — это современный асинхронный Telegram-бот на Python (`aiogram 3` + `aiohttp` + `SQLite`), предназначенный для отслеживания параметров ветра, порывов, прогнозов погоды, визуализации розы ветров и авто-уведомлений при сильном ветре.
+**WindyCheck Bot** is a modern asynchronous Telegram bot built with Python (`aiogram 3` + `aiohttp` + `SQLite`). It tracks wind speed, gusts, weather forecasts, visualizes wind rose diagrams, and sends automated push notifications for high wind alerts.
 
-Специально адаптирован для виндсёрферов, кайтсёрферов, яхтсменов, парапланеристов и любителей активного отдыха. Включает готовый кастомный раздел **спотов Санкт-Петербурга и Ленобласти** с оценкой пригодности для катания!
-
----
-
-## 🛠️ Функциональные возможности
-
-- 🏄‍♂️ **Споты Санкт-Петербурга и Ленобласти:** Готовые локации (Сестрорецк/Дюны, Кронштадт, Лахта, Зеленогорск, Кокорево/Ладога, Сосновый Бор, Комарово) с оценкой качества ветра для катания.
-- 🌬️ **Текущий ветер:** Скорость (м/с), порывы, направление (градусы + визуальная стрелка 🧭), температура, ощущаемая температура, влажность и давление (мм рт. ст.).
-- 📅 **Прогноз на неделю (5-7 дней):** Сводный суточный прогноз с автоматической перепроверкой раз в день и дневным кэшированием.
-- ⏱️ **Почасовой прогноз (24 часа):** Детальный разбор ветра и порывов на ближайшие сутки.
-- 📊 **Подробная Инфографика (Неблокирующий Event Loop):** Генерация профессиональных двухпанельных PNG-графиков (`matplotlib`) с динамикой ветра, порывов, пороговых линий, температуры и атмосферного давления в отдельном фоновом потоке (`asyncio.to_thread`).
-- 🧭 **Роза ветров:** Полярная диаграмма преобладающих направлений ветра.
-- 🗺️ **Интерактивные карты:** Генерация прямых ссылок на карты погоды [Windy.com](https://www.windy.com) с координатами локаций.
-- 📍 **Избранное (Мои города):** Сохранение персонального списка спотов для каждого пользователя в базе данных **SQLite** (`aiosqlite`).
-- 🔔 **Авто-уведомления (Алерты):** Фоновый мониторинг каждые 30 минут (`asyncio`) и отправка push-оповещений при превышении заданного порога скорости ветра с защитой от спама.
+Specifically tailored for windsurfers, kitesurfers, sailors, paragliders, and outdoor enthusiasts. Includes a pre-configured section for **Saint Petersburg and Leningrad Oblast spots** with real-time riding condition ratings!
 
 ---
 
-## 📖 Инструкция пользователя
+## 🛠️ Features
 
-В проекте уже подготовлена подробная полная документация для пользователя:
-* 📄 **[Инструкция пользователя (DOCX)](Wind_Tracker_Bot_Instruction.docx)** — документ в формате MS Word.
-* 🌐 **[Инструкция пользователя (HTML)](Wind_Tracker_Bot_Instruction.html)** — веб-страница справки с оформленным дизайном для открытия в браузере.
+- 🏄‍♂️ **Saint Petersburg & Leningrad Oblast Spots:** Pre-configured locations (Sestroretsk/Duny, Kronstadt, Lakhta, Zelenogorsk, Kokorevo/Ladoga, Sosnovy Bor, Komarovo) with automated riding condition quality rating.
+- 🌬️ **Current Wind:** Real-time speed (m/s), gusts, direction (degrees + visual compass needle 🧭), temperature, feels-like temperature, humidity, and pressure (mmHg).
+- 📅 **7-Day Forecast:** Consolidated daily forecast with automated daily verification and caching.
+- ⏱️ **Hourly Forecast (24 Hours):** Detailed hourly breakdown of wind speed and gusts for the upcoming 24 hours.
+- 📊 **Infographic Charts (Non-blocking Event Loop):** Generation of professional dual-panel PNG charts (`matplotlib`) displaying wind dynamics, gusts, threshold indicators, temperature, and pressure in a background thread pool (`asyncio.to_thread`).
+- 🧭 **Wind Rose Diagram:** Polar diagram showing prevailing wind directions.
+- 🗺️ **Interactive Maps:** Direct link generation to live weather and wind maps on [Windy.com](https://www.windy.com) for target location coordinates.
+- 📍 **Favorites (My Cities):** Personal spot tracking stored per user in **SQLite** database (`aiosqlite`).
+- 🔔 **Automated Wind Alerts:** Background monitoring loop every 30 minutes (`asyncio`) sending push alerts when wind speed exceeds specified user threshold, equipped with anti-spam cooldown protection.
 
 ---
 
-## 🚀 Быстрый запуск
+## 📖 User Documentation
 
-### 1. Клонирование репозитория
+Full user guides are included in the repository:
+* 📄 **[User Manual (DOCX)](Wind_Tracker_Bot_Instruction.docx)** — Microsoft Word document format.
+* 🌐 **[User Manual (HTML)](Wind_Tracker_Bot_Instruction.html)** — Styled interactive web page guide for desktop and mobile browsers.
+
+---
+
+## 🚀 Quick Start
+
+### 1. Clone the repository
 ```bash
 git clone https://github.com/your-username/WindyCheck_bot.git
 cd WindyCheck_bot
 ```
 
-### 2. Установка зависимостей
+### 2. Install dependencies
 ```bash
 pip install -r requirements.txt
 ```
 
-### 3. Настройка переменных окружения
-Скопируйте файл `.env.example` в `.env` и укажите ваши токены:
+### 3. Configure environment variables
+Copy `.env.example` to `.env` and set your API tokens:
 ```bash
 cp .env.example .env
 ```
 
-Отредактируйте `.env`:
+Edit `.env`:
 ```env
 BOT_TOKEN=your_telegram_bot_token_here
 OPENWEATHER_API_KEY=your_openweather_api_key_here
 ```
 
-### 4. Запуск бота
+### 4. Launch the bot
 ```bash
 python main.py
 ```
-*(Или запустите двойным кликом файл `run.bat` на Windows)*
+*(Or double-click `run.bat` on Windows)*
 
 ---
 
-## 📋 Команды бота
+## 📋 Bot Commands
 
-| Команда | Описание |
+| Command | Description |
 | :--- | :--- |
-| `/start` | Запуск бота и интерактивное Главное меню |
-| `/spb` | Меню спотов СПб и Ленобласти с оценкой условий катания |
-| `/wind [город]` | Текущий ветер и температура |
-| `/week [город]` | Подробный прогноз на неделю (5-7 дней) с перепроверкой |
-| `/forecast [город]` | Почасовой прогноз ветра на 24 часа |
-| `/chart [город]` | Наглядный двухпанельный инфо-график метео-анализа |
-| `/rose [город]` | Полярная диаграмма «Роза ветров» |
-| `/map [город]` | Ссылка на живую карту Windy.com |
-| `/track [город]` | Добавить город в Избранное |
-| `/untrack [город]` | Удалить город из Избранного |
-| `/mywind` | Ветер по всем избранным городам |
-| `/alert [скорость]` | Оповещение при ветре > X м/с |
-| `/alert off` | Отключить оповещения |
+| `/start` | Launch bot and open interactive Main Menu |
+| `/spb` | SPb & Leningrad Region spots menu with riding condition ratings |
+| `/wind [city]` | Current wind speed, direction, gusts, and temperature |
+| `/week [city]` | Detailed 7-day weather forecast with daily caching |
+| `/forecast [city]` | Hourly 24-hour wind forecast |
+| `/chart [city]` | Dual-panel infographic meteorology chart |
+| `/rose [city]` | Wind Rose polar direction diagram |
+| `/map [city]` | Direct link to live Windy.com map |
+| `/track [city]` | Add location to Favorites |
+| `/untrack [city]` | Remove location from Favorites |
+| `/mywind` | Current wind summary for all saved locations |
+| `/alert [speed]` | Enable push notifications for wind > X m/s |
+| `/alert off` | Disable wind notifications |
 
 ---
 
-## 🏷️ Релизы и история версий
+## 🏷️ Releases & Version History
 
-Подробный журнал изменений доступен в файле **[CHANGELOG.md](CHANGELOG.md)** (на английском языке).
+For full detailed release notes, see **[CHANGELOG.md](CHANGELOG.md)**.
 
-### [v2.0.0] - 29.07.2026
-- **Споты СПб и ЛО:** Добавлен раздел популярных спотов для кайтинга и виндсёрфинга в СПб и ЛО с авто-оценкой ветра.
-- **Прогноз на неделю:** Суточный прогноз на 7 дней с дневным кэшированием.
-- **Инфографические графики:** Асинхронный рендеринг двухпанельных PNG-графиков Matplotlib (`asyncio.to_thread`).
-- **База данных SQLite:** Переход на `aiosqlite` с автоматической миграцией из JSON.
-- **Модульная архитектура:** Рефакторинг кода на независимые пакеты и точка входа `main.py`.
+### [v2.0.0] - 2026-07-29
+- **SPb Wind Spots:** Pre-loaded surf/kite spots in St. Petersburg & Leningrad Oblast with automated condition ratings.
+- **Weekly Weather Forecast:** 7-day forecast with daily automatic caching and verification.
+- **Async Infographic Charts:** Dual-panel Matplotlib infographic generation rendered asynchronously (`asyncio.to_thread`).
+- **SQLite Database Persistence:** Storage migration to `aiosqlite` with automatic JSON data importer.
+- **Modular Refactoring:** Restructured codebase into clean package modules with `main.py` entrypoint.
 
-### [v1.0.0] - 19.07.2026
-- **Первый релиз:** Асинхронный Telegram-бот для отслеживания ветра, прогнозов, розы ветров, интеграции с Windy.com, избранного и алертов.
+### [v1.0.0] - 2026-07-19
+- **Initial Release:** Asynchronous Telegram Bot for wind tracking, 24h forecast, wind rose charts, Windy.com map integrations, favorites, and alert notifications.
 
 ---
 
-## 📜 Лицензия
-Проект распространяется под лицензией [MIT](LICENSE).
+## 📜 License
+This project is distributed under the [MIT License](LICENSE).

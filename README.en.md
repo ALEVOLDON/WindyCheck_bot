@@ -1,8 +1,8 @@
 # 🌬️ WindyCheck Telegram Bot
 
-[🇷🇺 Русский](README.md) | 🇬🇧 **English**
+🇬🇧 **English** | [🇷🇺 Русский](README.ru.md)
 
-![WindyCheck Bot Cover](assets/cover.jpg)
+![WindyCheck Bot Cover](assets/cover_en.jpg)
 
 [![Python 3.10+](https://img.shields.io/badge/python-3.10+-blue.svg)](https://www.python.org/downloads/)
 [![aiogram 3.x](https://img.shields.io/badge/aiogram-3.x-blueviolet.svg)](https://docs.aiogram.dev/)
